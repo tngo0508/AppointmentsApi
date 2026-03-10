@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using AppointmentsApi.Models;
+using AppointmentsApi.Services;
 
 namespace AppointmentsApi.Controllers
 {
@@ -14,10 +15,14 @@ namespace AppointmentsApi.Controllers
     public class AppointmentsController : ControllerBase
     {
         private readonly AppointmentContext _context;
+        private readonly PatientsApiClient _patientsApiClient;
+        private readonly DoctorsApiClient _doctorsApiClient;
 
-        public AppointmentsController(AppointmentContext context)
+        public AppointmentsController(AppointmentContext context, PatientsApiClient patientsApiClient, DoctorsApiClient doctorsApiClient)
         {
             _context = context;
+            _patientsApiClient = patientsApiClient;
+            _doctorsApiClient = doctorsApiClient;
         }
 
         // GET: api/Appointments
@@ -37,8 +42,22 @@ namespace AppointmentsApi.Controllers
             {
                 return NotFound();
             }
+            
+            // Use the clients to fetch patient and doctor details
+            var patient = await _patientsApiClient.GetPatientAsync(id);
+            var doctor = await _doctorsApiClient.GetDoctorAsync(id);
 
-            return appointment;
+            // Combine data and return response
+            AppointmentDetails appointmentDetails = new AppointmentDetails(
+                id,
+                patient,
+                doctor,
+                appointment.Slot.Start,
+                appointment.Slot.End,
+                appointment.Location.RoomNumber,
+                appointment.Location.Building
+            );
+            return Ok(appointmentDetails);
         }
 
         // PUT: api/Appointments/5
@@ -104,4 +123,14 @@ namespace AppointmentsApi.Controllers
             return _context.Appointments.Any(e => e.AppointmentId == id);
         }
     }
+    
+    public record AppointmentDetails(
+        Guid AppointmentId,
+        Patient Patient,
+        Doctor Doctor,
+        DateTime StartTime,
+        DateTime EndTime,
+        string RoomNumber,
+        string Building
+    );
 }
